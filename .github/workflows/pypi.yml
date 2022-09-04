@@ -21,6 +21,6 @@ jobs:
         env:
           PYPI_TOKEN: ${{ secrets.pypi_password }}
         run: |
-          $HOME/.poetry/bin/poetry config pypi-token.pypi $PYPI_TOKEN
-          $HOME/.poetry/bin/poetry build -f sdist
-          $HOME/.poetry/bin/poetry publish
+          $HOME/.local/bin/poetry config pypi-token.pypi $PYPI_TOKEN
+          $HOME/.local/bin/poetry build -f sdist
+          $HOME/.local/bin/poetry publish
