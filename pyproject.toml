@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "pyobs-gemini"
-version = "1.0.0"
+version = "1.0.1"
 description = "pyobs module for Optec Gemini focusser/rotator"
 authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>", "Frederic V. Hessman <fhessma@uni-goettingen.de>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9,<3.12"
 astropy = "^5.1"
 aioserial = "^1.3"
 pyobs-core = "^1.0"
