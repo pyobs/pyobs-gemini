@@ -1,13 +1,14 @@
 import asyncio
-import enum
 import datetime
+import enum
 import logging
-from typing import Optional, Any, Dict, List, cast
-import numpy as np
-import aioserial
 from itertools import chain
+from typing import Any, cast
 
-from pyobs_gemini.api import gemini_commands, gemini_cmd, gemini_parse_output
+import aioserial
+import numpy as np
+
+from pyobs_gemini.api import gemini_cmd, gemini_commands, gemini_parse_output
 
 log = logging.getLogger(__name__)
 
@@ -16,20 +17,20 @@ class GeminiTransaction:
     def __init__(
         self,
         tid: int = 0,
-        cmd: Optional[str] = None,
-        raw_cmd: Optional[str] = None,
-        response: Optional[Dict[str, Any]] = None,
-        errors: Optional[Dict[str, Any]] = None,
+        cmd: str | None = None,
+        raw_cmd: str | None = None,
+        response: dict[str, Any] | None = None,
+        errors: dict[str, Any] | None = None,
     ):
         """Constructor for a gemini transaction dictionary"""
         self.transaction = {"id": tid, "cmd": cmd, "raw_cmd": raw_cmd}
         self.response = {} if response is None else response
         self.errors = {} if errors is None else errors
         self.time = datetime.datetime.now()
-        self.data: Dict[Vocab, Any] = {}
+        self.data: dict[Vocab, Any] = {}
 
 
-def has_transaction_error(d: Optional[GeminiTransaction], keys: Optional[List[str]] = None) -> bool:
+def has_transaction_error(d: GeminiTransaction | None, keys: list[str] | None = None) -> bool:
     """Is there a problem with this transaction dictionary?"""
     if d is None:
         return True
@@ -42,7 +43,7 @@ def has_transaction_error(d: Optional[GeminiTransaction], keys: Optional[List[st
         return False
 
 
-def dict_union(*args: Any) -> Dict[str, Any]:
+def dict_union(*args: Any) -> dict[str, Any]:
     return dict(chain.from_iterable(d.items() for d in args if d is not None))
 
 
@@ -96,11 +97,11 @@ class GeminiDriver:
         self._lock = asyncio.Lock()
 
         # init
-        self._serial: Optional[aioserial.AioSerial] = None
+        self._serial: aioserial.AioSerial | None = None
         self.transID = 0
         self.transactions = np.array([None for i in range(99)], dtype=dict)  # CIRCULAR BUFFER
-        self.focus_model: Optional[Dict[str, float]] = None
-        self.rotation_model: Optional[Dict[str, float]] = None
+        self.focus_model: dict[str, float] | None = None
+        self.rotation_model: dict[str, float] | None = None
         self.focus_offset = 0.0
         self.rotation_offset = 0.0
 
@@ -233,9 +234,7 @@ class GeminiDriver:
 
         # conversion between hardware and position angle: deg = offset + scale * millideg
         # 	native is 0-360000 milli-degrees, convert to -180 to +180 degrees
-        min_rsteps = 0
         max_rsteps = 360000
-        rrange = 360.0  # DEG
         self.rotation_model = {
             "offset": -180.0,
             "scale": 0.001,
@@ -384,7 +383,7 @@ class GeminiDriver:
             await self._send_to_gemini("F", "DOHOME")
             return True
         except GeminiCommException as e:
-            log.error("Could not home focus: " + str(e))
+            log.error("Could not home focus: %s", e)
             return False
 
     async def focus_is_homed(self) -> bool:
@@ -407,7 +406,7 @@ class GeminiDriver:
             await self._send_to_gemini("R", "DOHOME")
             return True
         except GeminiCommException as e:
-            log.error("Could not home rotation: " + str(e))
+            log.error("Could not home rotation: %s", e)
             return False
 
     async def rotation_is_homed(self) -> bool:
