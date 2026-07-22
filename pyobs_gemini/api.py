@@ -21,10 +21,11 @@ The GEMINI responses have the syntax:
    {END|SET}
 
 """
-from typing import Dict, Any, Tuple, List
+
+from typing import Any
 
 # A COMMAND CONSISTS OF name,device,command_string,input_format,output_format,end_string,help
-gemini_commands: Dict[str, Dict[str, Any]] = {
+gemini_commands: dict[str, dict[str, Any]] = {
     "CENTER": {
         "cmd": "center",
         "device": "F",
@@ -238,25 +239,25 @@ def gemini_cmd(cmd: str, *args: Any, dev: str = "", trans_id: int = 0) -> str:
     transaction ID, and whatever input args are needed.
     """
     if cmd not in gemini_commands:
-        raise ValueError("{0} is not a GEMINI command!".format(cmd))
+        raise ValueError(f"{cmd} is not a GEMINI command!")
     info = gemini_commands[cmd]
     if dev not in info["device"]:
-        raise ValueError("{0} does not match GEMINI device {1}".format(dev, info["device"]))
+        raise ValueError("{} does not match GEMINI device {}".format(dev, info["device"]))
 
-    s1 = "<{0}1{1:02d}".format(dev, trans_id)
+    s1 = f"<{dev}1{trans_id:02d}"
     s2 = cmd
     if info["format"] is None:
         s3 = ""
     else:
         try:
             s3 = info["format"].format(*args)
-        except:
-            raise ValueError("format {0} does not work for {1}".format(info["format"], cmd))
+        except Exception:
+            raise ValueError(f"format {info['format']} does not work for {cmd}")
     s4 = ">"
     return s1 + s2 + s3 + s4
 
 
-def gemini_parse_output(cmd: str, raw_response: List[bytes]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def gemini_parse_output(cmd: str, raw_response: list[bytes]) -> tuple[dict[str, Any], dict[str, Any]]:
     """
     Parse the raw GEMINI output, a list of bytearray's from serial.readline,
     into a dictionary.
@@ -269,13 +270,13 @@ def gemini_parse_output(cmd: str, raw_response: List[bytes]) -> Tuple[Dict[str, 
     info = gemini_commands[cmd]
     if "end" not in info:
         raise IndexError("ending is not in info!")
-    results: Dict[str, Any] = {}
+    results: dict[str, Any] = {}
 
     # decode and remove newlines
     try:
         rsp = [r.decode("utf8").replace("\\n", "") for r in raw_response]
     except UnicodeDecodeError:
-        raise ValueError("{0!r} cannot be decoded".format(raw_response))
+        raise ValueError(f"{raw_response!r} cannot be decoded")
 
     # check for syntax
     if len(rsp) == 0 or not rsp[0].strip().startswith("!"):
@@ -284,7 +285,7 @@ def gemini_parse_output(cmd: str, raw_response: List[bytes]) -> Tuple[Dict[str, 
     # get transaction ID
     try:
         trans_id = int(rsp[0].strip()[1:])
-    except:
+    except ValueError:
         trans_id = None
     results["trans_id"] = trans_id
     errors = {}
