@@ -1481,7 +1481,7 @@ wheels = [
 
 [[package]]
 name = "pyobs-gemini"
-version = "2.0.0.dev0"
+version = "2.0.0.dev1"
 source = { editable = "." }
 dependencies = [
     { name = "aioserial" },
