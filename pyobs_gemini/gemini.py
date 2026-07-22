@@ -1,20 +1,30 @@
 import asyncio
 import logging
-from typing import Optional, List, Any, Dict, Tuple
+from typing import Any
+
+import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord
-import astropy.units as u
-
-from pyobs.events import MotionStatusChangedEvent, Event
+from pyobs.events import Event, MotionStatusChangedEvent
+from pyobs.interfaces import (
+    FitsHeaderEntry,
+    FocuserState,
+    ICalibrate,
+    IFitsHeaderBefore,
+    IFocuser,
+    IPointingRaDec,
+    IRotation,
+    RaDecState,
+    RotationState,
+)
 from pyobs.mixins import FitsNamespaceMixin, MotionStatusMixin
 from pyobs.modules import Module, timeout
 from pyobs.utils.enums import MotionStatus
 from pyobs.utils.parallel import event_wait
 from pyobs.utils.threads import LockWithAbort
-from pyobs.interfaces import IRotation, IMotion, IFocuser, ICalibrate, IFitsHeaderBefore, IPointingRaDec
 from pyobs.utils.time import Time
 
-from .geminidriver import GeminiDriver, GeminiCommException, Vocab
+from .geminidriver import GeminiCommException, GeminiDriver, Vocab
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +43,8 @@ class GeminiFocuserRotator(
 
     def __init__(
         self,
-        serial_config: Optional[Dict[str, Any]] = None,
-        fits_config: Optional[Dict[str, Any]] = None,
+        serial_config: dict[str, Any] | None = None,
+        fits_config: dict[str, Any] | None = None,
         focus_offset: float = 0.0,
         rotation_offset: float = 0.0,
         *args: Any,
@@ -60,7 +70,7 @@ class GeminiFocuserRotator(
         # ROTATOR STUFF
         self._rotation_lock = asyncio.Lock()
         self._rotation_abort = asyncio.Event()
-        self._skycoord: Optional[SkyCoord] = None
+        self._skycoord: SkyCoord | None = None
         self._rotation_accur = 0.0  # DEG
         self._rotation_offset = rotation_offset
 
@@ -78,7 +88,7 @@ class GeminiFocuserRotator(
             self._serial_config = serial_config
 
         # driver
-        self._driver: Optional[GeminiDriver] = None
+        self._driver: GeminiDriver | None = None
 
         # FITS HEADER CONFIGURATION
         if fits_config is None:
@@ -111,8 +121,7 @@ class GeminiFocuserRotator(
         # subscribe to events
         if self.comm:
             if self.follow:
-                # self.comm.register_event(TelescopeMovingEvent, self._telescope_event)
-                self.comm.register_event(MotionStatusChangedEvent, self._telescope_event)
+                await self.comm.register_event(MotionStatusChangedEvent, self._telescope_event)
 
         # create driver and open it
         self._driver = GeminiDriver(**self._serial_config)
@@ -198,11 +207,15 @@ class GeminiFocuserRotator(
             # TODO: find out
             # self._T = fdict.response[Vocab.CURRENT_TEMP.value]
 
+            # publish current focus/rotation state
+            await self.comm.set_state(IFocuser, FocuserState(focus=self.focus, focus_offset=self._focus_offset))
+            await self.comm.set_state(IRotation, RotationState(rotation=self.rotation))
+
             # get motion status
             await self._change_motion_status(self._motion_status(fdict.response), interface="IFocuser")
             await self._change_motion_status(self._motion_status(rdict.response), interface="IRotation")
 
-    def _motion_status(self, stat: Dict[str, Any]) -> MotionStatus:
+    def _motion_status(self, stat: dict[str, Any]) -> MotionStatus:
         """
         Extracts the IMotion status from a dictionary returned
         by the driver's status method.
@@ -243,7 +256,7 @@ class GeminiFocuserRotator(
             await event_wait(self._focus_abort, 1)
             await self._update_status()
 
-            while not self._focus_abort.is_set() and await self.get_motion_status("IFocuser") == MotionStatus.SLEWING:
+            while not self._focus_abort.is_set() and self.motion_status("IFocuser") == MotionStatus.SLEWING:
                 # sleep a little
                 await event_wait(self._focus_abort, 1)
 
@@ -253,14 +266,6 @@ class GeminiFocuserRotator(
 
         # success
         log.info("Successfully set new focus.")
-
-    async def get_focus(self, **kwargs: Any) -> float:
-        """Return current focus.
-
-        Returns:
-            Current focus.
-        """
-        return self.focus
 
     @timeout(300000)
     async def set_rotation(self, angle: float, **kwargs: Any) -> None:
@@ -281,9 +286,7 @@ class GeminiFocuserRotator(
             await event_wait(self._rotation_abort, 1)
             await self._update_status()
 
-            while (
-                not self._rotation_abort.is_set() and await self.get_motion_status("IRotation") == MotionStatus.SLEWING
-            ):
+            while not self._rotation_abort.is_set() and self.motion_status("IRotation") == MotionStatus.SLEWING:
                 # sleep a little
                 await event_wait(self._rotation_abort, 1)
 
@@ -294,11 +297,7 @@ class GeminiFocuserRotator(
         # success
         log.info("Successfully set new rotation.")
 
-    async def get_rotation(self, **kwargs: Any) -> float:
-        """Returns the current rotation angle."""
-        return await self._driver.get_rotation()
-
-    async def stop_motion(self, device: Optional[str] = None, **kwargs: Any) -> None:
+    async def stop_motion(self, device: str | None = None, **kwargs: Any) -> None:
         """Stop the motion.
 
         Args:
@@ -320,7 +319,7 @@ class GeminiFocuserRotator(
 
         # valid coordinates?
         if ra < 0.0 or ra > 360.0 or np.abs(dec) >= 90.0:
-            raise ValueError("RA, Dec out of limits (%.2f, %.2f)." % (ra, dec))
+            raise ValueError(f"RA, Dec out of limits ({ra:.2f}, {dec:.2f}).")
         skycoord = SkyCoord(ra * u.deg, dec * u.deg, frame="icrs")
 
         # get parallactic angle
@@ -331,13 +330,11 @@ class GeminiFocuserRotator(
 
         # start tracking and log it
         self._skycoord = skycoord
+        await self.comm.set_state(IPointingRaDec, RaDecState(ra=ra, dec=dec))
         log.info(
             "Started target tracking of parallactic angle at %s...",
             self._skycoord.to_string(),
         )
-
-    async def get_radec(self, **kwargs: Any) -> Tuple[float, float]:
-        return 0.0, 0.0
 
     async def _rotation_tracker_func(self) -> None:
         if self._driver is None:
@@ -352,11 +349,8 @@ class GeminiFocuserRotator(
                 # get parallactic angle
                 pa = self.observer.parallactic_angle(Time.now(), self._skycoord).degree
 
-                # get rotation
-                rot = await self.get_rotation()
-
-                # need to rotate?
-                if np.abs(pa - rot) > self._rotation_accur:
+                # need to rotate? (self.rotation is kept fresh by _gdriver_update_func)
+                if np.abs(pa - self.rotation) > self._rotation_accur:
                     # rotate
                     await self._driver.set_rotation(pa + self._rotation_offset)
 
@@ -364,8 +358,8 @@ class GeminiFocuserRotator(
             await asyncio.sleep(1)
 
     async def get_fits_header_before(
-        self, namespaces: Optional[List[str]] = None, **kwargs: Any
-    ) -> Dict[str, Tuple[Any, str]]:
+        self, namespaces: list[str] | None = None, **kwargs: Any
+    ) -> dict[str, FitsHeaderEntry]:
         """Returns FITS header for the current status of this module.
 
         Args:
@@ -374,34 +368,34 @@ class GeminiFocuserRotator(
         Returns:
             Dictionary containing FITS headers.
         """
-        hdr = {}
+        hdr: dict[str, FitsHeaderEntry] = {}
 
         # SET FOCUS HEADERS
         if "focus" in self._fits_config:
             key, comment = self._fits_config["focus"]
-            hdr[key] = self.focus, comment
+            hdr[key] = FitsHeaderEntry(value=self.focus, comment=comment)
         if "focus-motion" in self._fits_config:
             key, comment = self._fits_config["focus-motion"]
-            hdr[key] = (await self.get_motion_status("IFocuser")).value, comment
+            hdr[key] = FitsHeaderEntry(value=self.motion_status("IFocuser").value, comment=comment)
         if "focus-offset" in self._fits_config:
             key, comment = self._fits_config["focus-offset"]
-            hdr[key] = self._focus_offset, comment
+            hdr[key] = FitsHeaderEntry(value=self._focus_offset, comment=comment)
 
         # SET ROTATION HEADERS
         if "rotation" in self._fits_config:
             key, comment = self._fits_config["rotation"]
-            hdr[key] = self.rotation, comment
+            hdr[key] = FitsHeaderEntry(value=self.rotation, comment=comment)
         if "rotation-motion" in self._fits_config:
             key, comment = self._fits_config["rotation-motion"]
-            hdr[key] = (await self.get_motion_status("IRotation")).value, comment
+            hdr[key] = FitsHeaderEntry(value=self.motion_status("IRotation").value, comment=comment)
         if "rotation-offset" in self._fits_config:
             key, comment = self._fits_config["rotation-offset"]
-            hdr[key] = self._rotation_offset, comment
+            hdr[key] = FitsHeaderEntry(value=self._rotation_offset, comment=comment)
 
         # TEMPERATURE SENSOR
         if "temperature" in self._fits_config:
             key, comment = self._fits_config["temperature"]
-            hdr[key] = self._T, comment
+            hdr[key] = FitsHeaderEntry(value=self._T, comment=comment)
 
         # return it
         return self._filter_fits_namespace(hdr, namespaces=namespaces, **kwargs)
@@ -417,14 +411,6 @@ class GeminiFocuserRotator(
             MoveError: If telescope cannot be moved.
         """
         pass
-
-    async def get_focus_offset(self, **kwargs: Any) -> float:
-        """Return current focus offset.
-
-        Returns:
-            Current focus offset.
-        """
-        return 0.0
 
     async def init(self, **kwargs: Any) -> None:
         """Initialize device.
@@ -442,19 +428,11 @@ class GeminiFocuserRotator(
         """
         pass
 
-    async def is_ready(self, **kwargs: Any) -> bool:
-        """Returns the device is "ready", whatever that means for the specific device.
-
-        Returns:
-            Whether device is ready
-        """
-        return True
-
     async def _telescope_event(self, ev: Event, sender: str) -> bool:
         """Moving events from telescope.
 
         Args:
-            event: Either a MotionStatusChangedEvent or a TelescopeMovingEvent.
+            event: A MotionStatusChangedEvent.
             sender: Who sent it.
         """
 
@@ -462,23 +440,8 @@ class GeminiFocuserRotator(
         if self.follow is None or self.follow != sender:
             return False
 
-        # what kind of event is it?
-        if isinstance(ev, TelescopeMovingEvent):
-            # do we have RA/Dec?
-            if ev.ra is not None and ev.dec is not None:
-                # start tracking!
-                log.info("Received an event that telescope is about to start tracking. Following it... ")
-                await self.track(ev.ra, ev.dec)
-
-            else:
-                # presumably slewing to fixed coordinates
-                # are we currently tracking?
-                if self._skycoord is not None:
-                    log.info("Received event that telescope is not tracking anymore, stopping derotator movement...")
-                    await self.stop_motion("IRotation")
-
-        elif isinstance(ev, MotionStatusChangedEvent):
-            # we want the ITelescope event and anything except TRACKING and SLEWING (might end up in race condition)
+        # we want the ITelescope event and anything except TRACKING and SLEWING (might end up in race condition)
+        if isinstance(ev, MotionStatusChangedEvent):
             if "ITelescope" in ev.interfaces and ev.interfaces["ITelescope"] not in [
                 MotionStatus.TRACKING.value,
                 MotionStatus.SLEWING.value,
@@ -488,6 +451,8 @@ class GeminiFocuserRotator(
                     # stop it
                     log.info("Received event that telescope is not tracking anymore, stopping derotator movement...")
                     await self.stop_motion("IRotation")
+
+        return True
 
 
 __all__ = ["GeminiFocuserRotator"]

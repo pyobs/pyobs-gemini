@@ -1,24 +1,46 @@
-[tool.poetry]
+[project]
 name = "pyobs-gemini"
-version = "1.0.1"
+version = "2.0.0.dev1"
 description = "pyobs module for Optec Gemini focusser/rotator"
-authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>", "Frederic V. Hessman <fhessma@uni-goettingen.de>"]
+authors = [
+    { name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" },
+    { name = "Frederic V. Hessman", email = "fhessma@uni-goettingen.de" },
+]
+requires-python = ">=3.11,<3.14"
 license = "MIT"
+dependencies = [
+    "aioserial>=1.3,<2",
+    "astropy>=7.0.1,<8",
+    "numpy>=2.2.5,<3",
+    "pyobs-core>=2.0.0.dev38,<3",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.12"
-astropy = "^5.1"
-aioserial = "^1.3"
-pyobs-core = "^1.0"
+[dependency-groups]
+dev = [
+    "black>=25.1.0,<26",
+    "pre-commit>=4.2.0,<5",
+    "ruff>=0.9.0",
+    "pyrefly>=1.1.1",
+]
 
-[tool.poetry.dev-dependencies]
-black = "^21.12b0"
-pre-commit = "^2.16"
+[tool.uv.build-backend]
+module-root = ""
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.14,<0.10.0"]
+build-backend = "uv_build"
 
 [tool.black]
 line-length = 120
-target-version = ['py39']
+target-version = ['py311']
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "G"]
+
+[tool.pyrefly]
+python-version = "3.11"
+ignore-missing-imports = []
