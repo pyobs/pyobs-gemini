@@ -79,7 +79,7 @@ class GeminiFocuserRotator(
 
         # SERIAL CONFIGURATION DICTIONARY
         if serial_config is None:
-            self._serial_config = {
+            self._serial_config: dict[str, Any] = {
                 "port": "/dev/ttyUSB0",
                 "baudrate": 115200,
                 "timeout": 0.1,
