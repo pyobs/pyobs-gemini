@@ -1,6 +1,6 @@
 [project]
 name = "pyobs-gemini"
-version = "2.0.0.dev1"
+version = "2.0.0.dev2"
 description = "pyobs module for Optec Gemini focusser/rotator"
 authors = [
     { name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" },
@@ -10,24 +10,26 @@ requires-python = ">=3.11,<3.14"
 license = "MIT"
 dependencies = [
     "aioserial>=1.3,<2",
-    "astropy>=7.0.1,<8",
+    "astropy>=7.0.1,<9",
     "numpy>=2.2.5,<3",
-    "pyobs-core>=2.0.0.dev38,<3",
+    "pyobs-core>=2.0.0.dev48,<3",
 ]
 
 [dependency-groups]
 dev = [
-    "black>=25.1.0,<26",
+    "black>=25.1.0,<27",
     "pre-commit>=4.2.0,<5",
     "ruff>=0.9.0",
     "pyrefly>=1.1.1",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
 ]
 
 [tool.uv.build-backend]
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.9.14,<0.10.0"]
+requires = ["uv_build>=0.9.14,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.black]
@@ -44,3 +46,6 @@ select = ["E", "F", "W", "I", "UP", "G"]
 [tool.pyrefly]
 python-version = "3.11"
 ignore-missing-imports = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
