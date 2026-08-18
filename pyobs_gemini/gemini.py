@@ -30,9 +30,9 @@ log = logging.getLogger(__name__)
 
 
 class GeminiFocuserRotator(
+    Module,
     FitsNamespaceMixin,
     MotionStatusMixin,
-    Module,
     IRotation,
     IFocuser,
     ICalibrate,
@@ -50,7 +50,7 @@ class GeminiFocuserRotator(
         *args: Any,
         **kwargs: Any,
     ):
-        Module.__init__(self, *args, **kwargs)
+        super().__init__(*args, motion_status_interfaces=["IFocuser", "IRotation"], **kwargs)
 
         # add thread func
         self.add_background_task(self._gdriver_update_func, True)
@@ -109,10 +109,6 @@ class GeminiFocuserRotator(
             }
         else:
             self._fits_config = fits_config
-
-        # mixins
-        FitsNamespaceMixin.__init__(self, *args, **kwargs)
-        MotionStatusMixin.__init__(self, **kwargs, motion_status_interfaces=["IFocuser", "IRotation"])
 
     async def open(self) -> None:
         """Open module."""
