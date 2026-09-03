@@ -200,8 +200,7 @@ class GeminiFocuserRotator(
             self.rotation = rdict.data[Vocab.POSANG_DEG]
 
             # get temp
-            # TODO: find out
-            # self._T = fdict.response[Vocab.CURRENT_TEMP.value]
+            self._T = await self._driver.get_temperature()
 
             # publish current focus/rotation state
             await self.comm.set_state(IFocuser, FocuserState(focus=self.focus, focus_offset=self._focus_offset))
