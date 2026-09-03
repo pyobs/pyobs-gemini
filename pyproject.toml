@@ -1,6 +1,6 @@
 [project]
 name = "pyobs-gemini"
-version = "2.0.0"
+version = "2.0.1"
 description = "pyobs module for Optec Gemini focusser/rotator"
 authors = [
     { name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" },
