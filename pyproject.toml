@@ -1,6 +1,6 @@
 [project]
 name = "pyobs-gemini"
-version = "2.0.1"
+version = "2.0.2"
 description = "pyobs module for Optec Gemini focusser/rotator"
 authors = [
     { name = "Tim-Oliver Husser", email = "thusser@uni-goettingen.de" },
@@ -8,12 +8,19 @@ authors = [
 ]
 requires-python = ">=3.11"
 license = "MIT"
+readme = "README.md"
 dependencies = [
     "aioserial>=1.3,<2",
     "astropy>=7.0.1,<9",
     "numpy>=2.2.5,<3",
     "pyobs-core>=2.0.0,<3",
 ]
+
+[project.urls]
+Homepage = "https://www.pyobs.org"
+Documentation = "https://docs.pyobs.org"
+Repository = "https://github.com/pyobs/pyobs-gemini"
+Issues = "https://github.com/pyobs/pyobs-gemini/issues"
 
 [dependency-groups]
 dev = [
